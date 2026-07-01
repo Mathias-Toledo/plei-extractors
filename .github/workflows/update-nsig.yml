@@ -1,0 +1,75 @@
+name: Update NSig Extractor
+
+on:
+  schedule:
+    # Corre diario a las 06:00 UTC
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout plei-extractors
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Descargar YoutubeThrottlingParameterUtils.java de NewPipeExtractor
+        run: |
+          mkdir -p /tmp/newpipe
+          curl -sSL \
+            "https://raw.githubusercontent.com/TeamNewPipe/NewPipeExtractor/dev/extractor/src/main/java/org/schabi/newpipe/extractor/services/youtube/YoutubeThrottlingParameterUtils.java" \
+            -o /tmp/newpipe/ThrottlingUtils.java
+          echo "Descargado ThrottlingUtils.java ($(wc -c < /tmp/newpipe/ThrottlingUtils.java) bytes)"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up Node.js (para test de validación)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Generar y validar nsig_extractor.js
+        id: generate
+        run: |
+          python scripts/generate_nsig_extractor.py \
+            --java /tmp/newpipe/ThrottlingUtils.java \
+            --out nsig_extractor.js \
+            --test
+          echo "status=ok" >> "$GITHUB_OUTPUT"
+
+      - name: Verificar si hubo cambio
+        id: diff
+        run: |
+          if git diff --quiet nsig_extractor.js; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Sin cambios en nsig_extractor.js"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "nsig_extractor.js actualizado"
+            git diff --stat nsig_extractor.js
+          fi
+
+      - name: Commit y push si hubo cambio
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add nsig_extractor.js
+          git commit -m "chore: update nsig patterns from NewPipeExtractor $(date -u +%Y-%m-%d)"
+          git push
+
+      - name: Resumen
+        run: |
+          if [ "${{ steps.diff.outputs.changed }}" = "true" ]; then
+            echo "nsig_extractor.js actualizado y pusheado"
+          else
+            echo "nsig_extractor.js ya estaba al dia"
+          fi
