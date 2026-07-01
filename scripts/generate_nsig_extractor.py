@@ -14,9 +14,9 @@ import sys
 import json
 import subprocess
 import urllib.request
-import datetime
 import tempfile
 import os
+import hashlib
 
 NEWPIPE_JAVA_URL = (
     "https://raw.githubusercontent.com/TeamNewPipe/NewPipeExtractor"
@@ -207,8 +207,7 @@ def extract_patterns(java_src: str, constants: dict) -> list[dict]:
 JS_TEMPLATE = '''\
 // Plei NSig Extractor — AUTO-GENERADO por GitHub Action
 // Fuente: NewPipeExtractor YoutubeThrottlingParameterUtils.java (rama dev)
-// Commit referencia: {newpipe_ref}
-// Generado: {date}
+// Version: {version}  (hash de patrones — cambia solo cuando NewPipe actualiza sus regexes)
 // NO editar manualmente — este archivo se sobreescribe en cada update automático
 
 (function(global) {{
@@ -293,7 +292,6 @@ JS_TEMPLATE = '''\
     global.PleiNsig = {{
         version: '{version}',
         source: 'NewPipeExtractor',
-        generatedAt: '{date}',
 
         findFunctionName: function(js) {{
             try {{ return findNsigFunctionName(js); }} catch(e) {{ return null; }}
@@ -312,14 +310,13 @@ JS_TEMPLATE = '''\
 '''
 
 
-def generate_js(patterns: list[dict], newpipe_ref: str, version: str, date: str) -> str:
-    patterns_json = json.dumps(
-        [{"pattern": p["pattern"], "flags": p["flags"]} for p in patterns],
-        indent=4,
-    )
+def generate_js(patterns: list[dict]) -> str:
+    patterns_data = [{"pattern": p["pattern"], "flags": p["flags"]} for p in patterns]
+    patterns_json = json.dumps(patterns_data, indent=4)
+    # Versión = hash de los patrones → estable si NewPipe no cambia sus regexes
+    fingerprint = hashlib.sha256(patterns_json.encode()).hexdigest()[:8]
+    version = f"np-{len(patterns)}p-{fingerprint}"
     return JS_TEMPLATE.format(
-        date=date,
-        newpipe_ref=newpipe_ref,
         patterns_json=patterns_json,
         version=version,
     )
@@ -432,11 +429,7 @@ def main():
     )
     parser.add_argument("--out", required=True, help="Ruta de salida para nsig_extractor.js")
     parser.add_argument("--test", action="store_true", help="Validar el JS contra base.js real")
-    parser.add_argument("--version", default=None, help="Versión a inyectar en el JS")
     args = parser.parse_args()
-
-    date = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    version = args.version or datetime.datetime.now(datetime.timezone.utc).strftime("auto-%Y%m%d")
 
     # Obtener el archivo Java
     if args.java:
@@ -466,7 +459,7 @@ def main():
 
     # Generar JS
     print("Generando nsig_extractor.js...", file=sys.stderr)
-    js = generate_js(patterns, newpipe_ref, version, date)
+    js = generate_js(patterns)
 
     # Validar
     if args.test:
