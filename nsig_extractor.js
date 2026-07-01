@@ -1,7 +1,6 @@
 // Plei NSig Extractor — AUTO-GENERADO por GitHub Action
 // Fuente: NewPipeExtractor YoutubeThrottlingParameterUtils.java (rama dev)
-// Commit referencia: local
-// Generado: 2026-07-01 23:26 UTC
+// Version: np-8p-3c38bef2  (hash de patrones — cambia solo cuando NewPipe actualiza sus regexes)
 // NO editar manualmente — este archivo se sobreescribe en cada update automático
 
 (function(global) {
@@ -117,9 +116,8 @@
     }
 
     global.PleiNsig = {
-        version: 'auto-20260701',
+        version: 'np-8p-3c38bef2',
         source: 'NewPipeExtractor',
-        generatedAt: '2026-07-01 23:26 UTC',
 
         findFunctionName: function(js) {
             try { return findNsigFunctionName(js); } catch(e) { return null; }
