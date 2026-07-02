@@ -1,9 +1,11 @@
 {
+  "apkSha256": "",
+  "apkUrl": "",
   "bgutils": {
     "requestKey": "O43z0dpjhgX20SCx4KAo"
   },
   "canaryVideoId": "jNQXAC9IVRw",
-  "generatedAt": "2026-07-02T00:17:56Z",
+  "generatedAt": "2026-07-02T08:52:17Z",
   "innerTubeClients": {
     "ANDROID_TESTSUITE": {
       "clientId": 30,
@@ -34,8 +36,6 @@
       "version": "2.0"
     }
   },
-  "apkSha256": "",
-  "apkUrl": "",
   "minAppVersion": 1,
   "version": "plei-config-6767e8f9",
   "workerUrl": "https://plei-proxy.xincontacto2.workers.dev/proxy?url="
