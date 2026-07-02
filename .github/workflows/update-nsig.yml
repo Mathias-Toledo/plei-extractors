@@ -26,20 +26,34 @@ jobs:
             -o /tmp/newpipe/ThrottlingUtils.java
           echo "Descargado ThrottlingUtils.java ($(wc -c < /tmp/newpipe/ThrottlingUtils.java) bytes)"
 
-      - name: Bundle bgutils.js para browser (IIFE con BgUtils global)
+      - name: Bundle bgutils.js para browser (IIFE con BgUtils.BG global)
         run: |
           npm install bgutils-js
-          # esbuild: bundle + IIFE + global window.BgUtils = { BG: ... }
-          npx esbuild node_modules/bgutils-js/dist/core/index.js \
+          # Entry: dist/index.js (re-exporta todo como BG: { Challenge, PoToken, ... })
+          # Con --global-name=BgUtils el resultado es window.BgUtils = { BG: {...}, default: {...} }
+          # El WebView en PoTokenProvider.kt usa BgUtils.BG.Challenge.create() y BgUtils.BG.PoToken.generate()
+          npx esbuild node_modules/bgutils-js/dist/index.js \
             --bundle --format=iife --global-name=BgUtils \
             --outfile=bgutils.js
           SIZE=$(wc -c < bgutils.js)
           echo "bgutils.js bundleado: ${SIZE} bytes"
-          # Sanity check: el bundle debe pesar al menos 10KB
+          # Sanity check 1: tamaño mínimo 10KB
           if [ "$SIZE" -lt 10000 ]; then
-            echo "ERROR: bundle demasiado pequeño (${SIZE}B < 10000B) — conservando versión anterior"
+            echo "WARN: bundle demasiado pequeño (${SIZE}B) — conservando versión anterior"
             git checkout -- bgutils.js 2>/dev/null || true
+            exit 0
           fi
+          # Sanity check 2: verificar que expone BgUtils.BG.Challenge y BgUtils.BG.PoToken
+          node -e "
+            const code = require('fs').readFileSync('bgutils.js', 'utf8');
+            const fn = new Function(code + '; return typeof BgUtils !== \"undefined\" ? BgUtils : null;');
+            const BgUtils = fn();
+            if (!BgUtils || !BgUtils.BG || !BgUtils.BG.Challenge || !BgUtils.BG.PoToken) {
+              console.error('ERROR: BgUtils.BG.Challenge o BgUtils.BG.PoToken no presentes — conservando versión anterior');
+              process.exit(1);
+            }
+            console.log('OK: estructura BgUtils.BG validada (' + Object.keys(BgUtils.BG).join(', ') + ')');
+          " || git checkout -- bgutils.js 2>/dev/null || true
 
       - name: Descargar yt-dlp _base.py
         run: |
