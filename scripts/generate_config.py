@@ -54,6 +54,38 @@ MIN_APP_VERSION = 1
 CANARY_VIDEO_ID = "jNQXAC9IVRw"   # "Me at the zoo" — primer video de YouTube, siempre existe
 
 
+# ── Comparación de versiones (R3) ─────────────────────────────────────────────
+
+def _tv_date(ver: str) -> int:
+    """Extrae la parte YYYYMMDD de 'N.YYYYMMDD.HH.MM'. Retorna 0 si no parsea."""
+    parts = ver.split(".")
+    if len(parts) >= 2 and len(parts[1]) == 8 and parts[1].isdigit():
+        return int(parts[1])
+    return 0
+
+def _semver_tuple(ver: str):
+    """Convierte 'M.m.p' en (M, m, p). Retorna (0,0,0) si no parsea."""
+    try:
+        parts = [int(x) for x in ver.split(".")]
+        while len(parts) < 3:
+            parts.append(0)
+        return tuple(parts[:3])
+    except ValueError:
+        return (0, 0, 0)
+
+def version_is_older(new_ver: str, current_ver: str, client_name: str) -> bool:
+    """True si new_ver es más vieja que current_ver → rechazar la regresión."""
+    if not current_ver or current_ver == new_ver:
+        return False
+    if client_name in ("TVHTML5", "TVHTML5_SIMPLY", "TVHTML5_SIMPLY_EMBEDDED_PLAYER"):
+        new_d, cur_d = _tv_date(new_ver), _tv_date(current_ver)
+        if new_d > 0 and cur_d > 0:
+            return new_d < cur_d
+    else:
+        return _semver_tuple(new_ver) < _semver_tuple(current_ver)
+    return False
+
+
 # ── Fetch ─────────────────────────────────────────────────────────────────────
 
 def fetch_url(url: str, description: str) -> str | None:
@@ -103,30 +135,40 @@ def extract_client_block(base_py: str, client_name: str) -> str | None:
     return None
 
 
-def extract_client_version(base_py: str, ytdlp_key: str, fallback: str) -> str:
-    """Extrae clientVersion de INNERTUBE_CLIENTS usando la key de yt-dlp."""
+def extract_client_version(base_py: str, ytdlp_key: str, fallback: str,
+                           current_ver: str = "") -> str:
+    """Extrae clientVersion de INNERTUBE_CLIENTS usando la key de yt-dlp.
+    Si la versión nueva es más vieja que current_ver, conserva current_ver (R3)."""
     block = extract_client_block(base_py, ytdlp_key)
     if not block:
         print(f"  [WARN] {ytdlp_key}: bloque no encontrado → fallback {fallback}", file=sys.stderr)
         return fallback
     m = re.search(r"""['"]clientVersion['"]\s*:\s*['"]([^'"]+)['"]""", block)
-    if m:
-        version = m.group(1)
-        print(f"  [OK] {ytdlp_key}: {version}", file=sys.stderr)
-        return version
-    print(f"  [WARN] {ytdlp_key}: clientVersion no encontrado → fallback {fallback}", file=sys.stderr)
-    return fallback
+    if not m:
+        print(f"  [WARN] {ytdlp_key}: clientVersion no encontrado → fallback {fallback}", file=sys.stderr)
+        return fallback
+    version = m.group(1)
+    if current_ver and version_is_older(version, current_ver, ytdlp_key):
+        print(f"  [WARN R3] {ytdlp_key}: regresión detectada {version} < {current_ver} → conservando {current_ver}", file=sys.stderr)
+        return current_ver
+    print(f"  [OK] {ytdlp_key}: {version}", file=sys.stderr)
+    return version
 
 
 # ── Construcción del config ───────────────────────────────────────────────────
 
-def build_config(base_py: str | None) -> dict:
+def build_config(base_py: str | None, existing_clients: dict | None = None) -> dict:
     clients = {}
     for name, meta in PLEI_CLIENTS.items():
         fallback = meta["fallback_version"]
         ytdlp_key = meta.get("ytdlp_key")
+        # R3: versión actual del JSON existente (para detectar regresiones)
+        existing_entry = (existing_clients or {}).get(name, {})
+        current_ver = existing_entry.get("version") or (
+            existing_entry.get("versions", [None])[0] if "versions" in existing_entry else ""
+        ) or ""
         if base_py and ytdlp_key:
-            version = extract_client_version(base_py, ytdlp_key, fallback)
+            version = extract_client_version(base_py, ytdlp_key, fallback, current_ver)
         else:
             version = fallback
             if not ytdlp_key:
@@ -169,17 +211,19 @@ def main():
     parser.add_argument("--out", required=True, help="Ruta de salida para plei-config.json")
     args = parser.parse_args()
 
-    # Preservar campos de auto-update del JSON existente (no sobrescribir)
+    # Leer JSON existente: preservar auto-update y detectar regresiones (R3)
     existing_apk_url   = ""
     existing_apk_sha   = ""
     existing_min_ver   = MIN_APP_VERSION
+    existing_clients   = None
     if os.path.exists(args.out):
         try:
             with open(args.out, encoding="utf-8") as f:
                 existing = json.load(f)
-            existing_apk_url = existing.get("apkUrl", "")
-            existing_apk_sha = existing.get("apkSha256", "")
-            existing_min_ver = existing.get("minAppVersion", MIN_APP_VERSION)
+            existing_apk_url   = existing.get("apkUrl", "")
+            existing_apk_sha   = existing.get("apkSha256", "")
+            existing_min_ver   = existing.get("minAppVersion", MIN_APP_VERSION)
+            existing_clients   = existing.get("innerTubeClients")
             print(f"Preservando auto-update: minAppVersion={existing_min_ver} apkUrl={'(set)' if existing_apk_url else '(empty)'}", file=sys.stderr)
         except Exception as e:
             print(f"No se pudo leer config existente: {e}", file=sys.stderr)
@@ -193,7 +237,7 @@ def main():
         base_py = fetch_url(YTDLP_BASE_URL, "yt-dlp _base.py")
 
     print("\nExtrayendo versiones de clientes InnerTube...", file=sys.stderr)
-    config = build_config(base_py)
+    config = build_config(base_py, existing_clients)
     config["version"] = compute_version(config)
 
     # Restaurar campos de auto-update preservados
