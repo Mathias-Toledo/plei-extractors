@@ -169,6 +169,21 @@ def main():
     parser.add_argument("--out", required=True, help="Ruta de salida para plei-config.json")
     args = parser.parse_args()
 
+    # Preservar campos de auto-update del JSON existente (no sobrescribir)
+    existing_apk_url   = ""
+    existing_apk_sha   = ""
+    existing_min_ver   = MIN_APP_VERSION
+    if os.path.exists(args.out):
+        try:
+            with open(args.out, encoding="utf-8") as f:
+                existing = json.load(f)
+            existing_apk_url = existing.get("apkUrl", "")
+            existing_apk_sha = existing.get("apkSha256", "")
+            existing_min_ver = existing.get("minAppVersion", MIN_APP_VERSION)
+            print(f"Preservando auto-update: minAppVersion={existing_min_ver} apkUrl={'(set)' if existing_apk_url else '(empty)'}", file=sys.stderr)
+        except Exception as e:
+            print(f"No se pudo leer config existente: {e}", file=sys.stderr)
+
     # Obtener _base.py
     if args.ytdlp:
         print(f"Leyendo {args.ytdlp}...", file=sys.stderr)
@@ -180,6 +195,11 @@ def main():
     print("\nExtrayendo versiones de clientes InnerTube...", file=sys.stderr)
     config = build_config(base_py)
     config["version"] = compute_version(config)
+
+    # Restaurar campos de auto-update preservados
+    config["minAppVersion"] = existing_min_ver
+    config["apkUrl"]        = existing_apk_url
+    config["apkSha256"]     = existing_apk_sha
 
     # sort_keys para determinismo → sin commits spurious si el contenido no cambia
     output = json.dumps(config, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
