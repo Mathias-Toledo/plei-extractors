@@ -1,0 +1,40 @@
+{
+  "bgutils": {
+    "requestKey": "O43z0dpjhgX20SCx4KAo"
+  },
+  "canaryVideoId": "jNQXAC9IVRw",
+  "generatedAt": "2026-07-02T00:17:56Z",
+  "innerTubeClients": {
+    "ANDROID_TESTSUITE": {
+      "clientId": 30,
+      "version": "1.9"
+    },
+    "ANDROID_VR": {
+      "clientId": 28,
+      "versions": [
+        "1.65.10",
+        "1.57.2",
+        "1.56.21"
+      ]
+    },
+    "IOS": {
+      "clientId": 5,
+      "version": "21.02.3"
+    },
+    "TVHTML5": {
+      "clientId": 7,
+      "version": "7.20260114.12.00"
+    },
+    "TVHTML5_SIMPLY": {
+      "clientId": 74,
+      "version": "1.0"
+    },
+    "TVHTML5_SIMPLY_EMBEDDED_PLAYER": {
+      "clientId": 85,
+      "version": "2.0"
+    }
+  },
+  "minAppVersion": 1,
+  "version": "plei-config-6767e8f9",
+  "workerUrl": "https://plei-proxy.xincontacto2.workers.dev/proxy?url="
+}

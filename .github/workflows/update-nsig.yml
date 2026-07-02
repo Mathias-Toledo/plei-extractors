@@ -1,4 +1,4 @@
-name: Update NSig Extractor
+name: Update NSig Extractor + Plei Config
 
 on:
   schedule:
@@ -26,6 +26,14 @@ jobs:
             -o /tmp/newpipe/ThrottlingUtils.java
           echo "Descargado ThrottlingUtils.java ($(wc -c < /tmp/newpipe/ThrottlingUtils.java) bytes)"
 
+      - name: Descargar yt-dlp _base.py
+        run: |
+          mkdir -p /tmp/ytdlp
+          curl -sSL \
+            "https://raw.githubusercontent.com/yt-dlp/yt-dlp/master/yt_dlp/extractor/youtube/_base.py" \
+            -o /tmp/ytdlp/_base.py
+          echo "Descargado _base.py ($(wc -c < /tmp/ytdlp/_base.py) bytes)"
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -37,7 +45,7 @@ jobs:
           node-version: '20'
 
       - name: Generar y validar nsig_extractor.js
-        id: generate
+        id: generate_nsig
         run: |
           python scripts/generate_nsig_extractor.py \
             --java /tmp/newpipe/ThrottlingUtils.java \
@@ -45,35 +53,47 @@ jobs:
             --test
           echo "status=ok" >> "$GITHUB_OUTPUT"
 
-      # El archivo es determinístico (versión = hash de patrones).
-      # Solo habrá diff si NewPipeExtractor realmente cambió sus regexes.
+      - name: Generar plei-config.json
+        id: generate_config
+        run: |
+          python scripts/generate_config.py \
+            --ytdlp /tmp/ytdlp/_base.py \
+            --out plei-config.json
+          echo "status=ok" >> "$GITHUB_OUTPUT"
+
+      # Ambos archivos son determinísticos (versión = hash de contenido).
+      # Solo habrá diff si NewPipeExtractor o yt-dlp realmente actualizaron algo.
 
       - name: Verificar si hubo cambio
         id: diff
         run: |
-          if git diff --quiet nsig_extractor.js; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "Sin cambios en nsig_extractor.js"
-          else
-            echo "changed=true" >> "$GITHUB_OUTPUT"
+          CHANGED=false
+          if ! git diff --quiet nsig_extractor.js; then
             echo "nsig_extractor.js actualizado"
             git diff --stat nsig_extractor.js
+            CHANGED=true
           fi
+          if ! git diff --quiet plei-config.json; then
+            echo "plei-config.json actualizado"
+            git diff --stat plei-config.json
+            CHANGED=true
+          fi
+          echo "changed=$CHANGED" >> "$GITHUB_OUTPUT"
 
       - name: Commit y push si hubo cambio
         if: steps.diff.outputs.changed == 'true'
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add nsig_extractor.js
-          git commit -m "chore: update nsig patterns from NewPipeExtractor $(date -u +%Y-%m-%d)"
+          git add nsig_extractor.js plei-config.json
+          git commit -m "chore: update extractors from upstream $(date -u +%Y-%m-%d)"
           git pull --rebase
           git push
 
       - name: Resumen
         run: |
           if [ "${{ steps.diff.outputs.changed }}" = "true" ]; then
-            echo "nsig_extractor.js actualizado y pusheado"
+            echo "Archivos actualizados y pusheados"
           else
-            echo "nsig_extractor.js ya estaba al dia"
+            echo "Sin cambios — todo al dia"
           fi
