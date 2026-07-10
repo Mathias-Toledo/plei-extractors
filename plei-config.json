@@ -5,7 +5,7 @@
     "requestKey": "O43z0dpjhgX20SCx4KAo"
   },
   "canaryVideoId": "jNQXAC9IVRw",
-  "generatedAt": "2026-07-09T09:39:14Z",
+  "generatedAt": "2026-07-10T09:30:17Z",
   "innerTubeClients": {
     "ANDROID_TESTSUITE": {
       "clientId": 30,
@@ -21,11 +21,11 @@
     },
     "IOS": {
       "clientId": 5,
-      "version": "21.02.3"
+      "version": "21.26.4"
     },
     "TVHTML5": {
       "clientId": 7,
-      "version": "7.20260114.12.00"
+      "version": "7.20260707.07.00"
     },
     "TVHTML5_SIMPLY": {
       "clientId": 74,
@@ -37,6 +37,6 @@
     }
   },
   "minAppVersion": 1,
-  "version": "plei-config-6767e8f9",
+  "version": "plei-config-d1a7d87c",
   "workerUrl": "https://plei-proxy.xincontacto2.workers.dev/proxy?url="
 }
